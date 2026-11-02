@@ -43,3 +43,7 @@ The app lands in `build/DerivedData/Build/Products/Debug/QuickGif.app`. Requires
 | Encoding | `Encoding/GIFEncoder.swift` | Streaming GIF89a writer: frame differencing, transparent unchanged pixels, exact palettes for UI content, median cut otherwise |
 
 Frames stream from ScreenCaptureKit straight into the encoder, so memory stays flat for long recordings. A frame is shown until the next frame arrives, and identical frames are coalesced, so an idle screen costs almost nothing.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
