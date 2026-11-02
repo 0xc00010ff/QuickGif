@@ -31,8 +31,12 @@ final class ScreenRecorder {
     let region: CaptureRegion
     let fps: Int
     let scale: CaptureScale
-    /// Called on a background serial queue for every complete frame.
-    var onFrame: ((FrameBuffer, TimeInterval) -> Void)?
+    /// Called on a background serial queue for every complete frame. Safe to change while capturing.
+    var onFrame: ((FrameBuffer, TimeInterval) -> Void)? {
+        get { lock.withLock { frameHandler } }
+        set { lock.withLock { frameHandler = newValue } }
+    }
+    private var frameHandler: ((FrameBuffer, TimeInterval) -> Void)?
     /// Called on the main queue if the stream stops unexpectedly (display disconnected, permission revoked…).
     var onError: ((Error) -> Void)?
 

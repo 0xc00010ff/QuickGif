@@ -116,12 +116,19 @@ final class RecordingPipeline: @unchecked Sendable {
     }
 
     /// Abandons the recording and removes any partial file.
-    func discard() {
+    /// `wait` returns only once the file is gone, so the same URL can be reused at once.
+    func discard(wait: Bool = false) {
         lock.withLock { stopElapsed = 0 }
-        queue.async { [self] in
-            try? encoder.finish(at: 0)
-            removeOutput()
+        if wait {
+            queue.sync { discardOnQueue() }
+        } else {
+            queue.async { [self] in discardOnQueue() }
         }
+    }
+
+    private func discardOnQueue() {
+        try? encoder.finish(at: 0)
+        removeOutput()
     }
 
     private func unlockedElapsed(now: TimeInterval) -> TimeInterval {

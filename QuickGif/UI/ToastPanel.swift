@@ -33,7 +33,8 @@ final class ToastPanel: NSPanel {
             onHover: { [weak self] hovering in
                 // Keep it up while the pointer is on it.
                 if hovering { self?.dismissTimer?.invalidate() } else { self?.scheduleDismiss() }
-            }
+            },
+            onClose: { [weak self] in self?.dismiss(animated: true) }
         )
         let hosting = FirstMouseHostingView(rootView: view)
         contentView = hosting
@@ -85,6 +86,7 @@ private struct ToastView: View {
     let onOpen: (URL) -> Void
     let onReveal: (URL) -> Void
     let onHover: (Bool) -> Void
+    let onClose: () -> Void
 
     var body: some View {
         Group {
@@ -124,6 +126,7 @@ private struct ToastView: View {
             .help("Open \(recording.url.lastPathComponent)")
 
             Button("Show in Finder") { onReveal(recording.url) }
+            closeButton
         }
     }
 
@@ -141,6 +144,22 @@ private struct ToastView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
+            closeButton
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onClose)
+    }
+
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(.quaternary))
+        }
+        .buttonStyle(.plain)
+        .help("Dismiss")
+        .accessibilityLabel("Dismiss")
     }
 }

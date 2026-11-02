@@ -8,16 +8,25 @@ final class OptionsModel {
     var region: CaptureRegion?
     @ObservationIgnored var onStart: (StartDelay) -> Void = { _ in }
     @ObservationIgnored var onChooseFolder: () -> Void = {}
+    @ObservationIgnored var onSelectEntireScreen: () -> Void = {}
+    @ObservationIgnored var onClearSelection: () -> Void = {}
 }
 
 /// Borderless panel under the selection. It can become key so its text fields work,
 /// but only when a control needs it, so the overlay keeps keyboard focus otherwise.
+/// It follows the selection until the user drags it somewhere; then it stays put.
 final class OptionsPanel: NSPanel {
+    private let model: OptionsModel
+    /// Where `place` last put the panel; a different origin means the user dragged it.
+    private var placedOrigin: NSPoint?
+
     init(model: OptionsModel) {
+        self.model = model
         super.init(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
         configureAsOverlay(level: .overlayPanel)
         hasShadow = true
         becomesKeyOnlyIfNeeded = true
+        isMovableByWindowBackground = true
         let hosting = FirstMouseHostingView(rootView: OptionsView(model: model, prefs: Preferences.shared))
         contentView = hosting
         setContentSize(hosting.fittingSize)
@@ -25,16 +34,29 @@ final class OptionsPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
 
+    /// Edit > Select All while the panel is key but no field is editing.
+    override func selectAll(_ sender: Any?) { model.onSelectEntireScreen() }
+
+    /// True while the user is typing in one of the panel's fields.
+    /// (SwiftUI gives a text field focus as soon as the panel appears, so the
+    /// first responder alone does not mean anything is being edited.)
+    var isEditingText: Bool { isKeyWindow && firstResponder is NSText }
+
     /// Ends text editing if a field is active. Returns whether one was.
     @discardableResult
     func endEditing() -> Bool {
-        guard firstResponder is NSText else { return false }
+        guard isEditingText else { return false }
         makeFirstResponder(nil)
         return true
     }
 
+    /// Lets the next `place` move the panel again (a new selection was drawn).
+    func resetPlacement() { placedOrigin = nil }
+
     /// Centered under `rect` (12 pt gap); above it if that leaves the screen; inside its bottom otherwise.
+    /// Does nothing once the user has dragged the panel.
     func place(near rect: CGRect, on screenFrame: CGRect) {
+        if let placedOrigin, frame.origin != placedOrigin { return }
         let size = frame.size
         let gap: CGFloat = 12, margin: CGFloat = 8
         let x = min(max(rect.midX - size.width / 2, screenFrame.minX + margin), screenFrame.maxX - size.width - margin)
@@ -44,6 +66,7 @@ final class OptionsPanel: NSPanel {
             if y + size.height > screenFrame.maxY - margin { y = rect.minY + gap }
         }
         setFrameOrigin(NSPoint(x: x.rounded(), y: y.rounded()))
+        placedOrigin = frame.origin
     }
 }
 
@@ -80,7 +103,7 @@ struct OptionsView: View {
             formatRow
         }
         .padding(16)
-        .frame(width: 500)
+        .frame(width: 540)
         .background(VisualEffectBackground(material: .popover, cornerRadius: 12))
     }
 
@@ -175,6 +198,20 @@ struct OptionsView: View {
             Spacer()
 
             if let region = model.region {
+                if region.rect == region.screenFrame {
+                    Button { model.onClearSelection() } label: {
+                        Label("Reset Selection", systemImage: "rectangle.dashed")
+                    }
+                    .fixedSize()
+                    .help("Clear the selection and drag a new area (Delete)")
+                } else {
+                    Button { model.onSelectEntireScreen() } label: {
+                        Label("Entire Screen", systemImage: "display")
+                    }
+                    .fixedSize()
+                    .help("Select the entire screen (⌘A)")
+                }
+
                 let size = region.pixelSize(for: prefs.options.scale)
                 Text("\(size.width) × \(size.height) px")
                     .monospacedDigit()

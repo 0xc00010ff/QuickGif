@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 @MainActor
 protocol SelectionViewDelegate: AnyObject {
@@ -23,6 +24,7 @@ final class SelectionView: NSView {
             drag = nil
             needsDisplay = true
             dirtyAreas = decorationAreas()
+            updateHint()
         }
     }
 
@@ -42,7 +44,7 @@ final class SelectionView: NSView {
 
     private static let minimumSize: CGFloat = 16
     private static let handleSize: CGFloat = 7
-    private static let veilColor = NSColor.white.withAlphaComponent(0.4)
+    private static let veilColor = NSColor.white.withAlphaComponent(0.2)
     private static let pillColor = NSColor.black.withAlphaComponent(0.72)
 
     private enum Drag {
@@ -55,18 +57,52 @@ final class SelectionView: NSView {
     private var cursorPoint: NSPoint = .zero
     /// What was last drawn outside the plain veil, so it can be invalidated precisely.
     private var dirtyAreas: [NSRect] = []
+    /// Centered prompt with the Select Entire Screen button; a real view so the button is clickable.
+    private let hintView: FirstMouseHostingView<SelectionHintView>
 
     override init(frame: NSRect) {
+        hintView = FirstMouseHostingView(rootView: SelectionHintView())
         super.init(frame: frame)
+        hintView.rootView = SelectionHintView(onSelectEntireScreen: { [weak self] in self?.selectEntireScreen() })
+        addSubview(hintView)
+        positionHint()
         addTrackingArea(NSTrackingArea(rect: .zero,
                                        options: [.mouseMoved, .cursorUpdate, .activeAlways, .inVisibleRect],
                                        owner: self))
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        positionHint()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    // MARK: Whole screen
+
+    /// Selects this screen's full bounds (the hint button, the panel button, Edit > Select All).
+    func selectEntireScreen() {
+        guard mode == .selecting else { return }
+        drag = nil
+        delegate?.selectionViewDidBeginSelection(self)
+        selection = bounds
+        delegate?.selectionViewDidChange(self)
+        if let window { updateCursor(at: convert(window.mouseLocationOutsideOfEventStream, from: nil)) }
+    }
+
+    override func selectAll(_ sender: Any?) { selectEntireScreen() }
+
+    /// Discards the selection, back to the empty prompt.
+    func clearSelection() {
+        guard mode == .selecting, selection != nil else { return }
+        drag = nil
+        selection = nil
+        delegate?.selectionViewDidChange(self)
+        if let window { updateCursor(at: convert(window.mouseLocationOutsideOfEventStream, from: nil)) }
+    }
 
     // MARK: Mouse
 
@@ -160,7 +196,9 @@ final class SelectionView: NSView {
 
     private func updateCursor(at p: NSPoint) {
         guard mode == .selecting, drag == nil else { return }
-        if let s = selection, let handle = Handle.at(p, in: s) {
+        if !hintView.isHidden, hintView.frame.contains(p) {
+            NSCursor.arrow.set()
+        } else if let s = selection, let handle = Handle.at(p, in: s) {
             handle.cursor.set()
         } else if let s = selection, s.contains(p) {
             NSCursor.openHand.set()
@@ -187,7 +225,6 @@ final class SelectionView: NSView {
             drawBorder(s)
             if mode == .selecting, !isDrawingNewSelection { drawHandles(s) }
         }
-        if let hint = hintLayout() { hint.draw() }
         if let label = sizeLabelLayout() { label.draw() }
     }
 
@@ -245,18 +282,14 @@ final class SelectionView: NSView {
         }
     }
 
-    private func hintLayout() -> Pill? {
-        guard mode == .selecting, showsHint, selection == nil, drag == nil else { return nil }
-        let title = NSAttributedString(string: "Drag to select an area to record", attributes: [
-            .font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: NSColor.white,
-        ])
-        let detail = NSAttributedString(string: "Esc to cancel", attributes: [
-            .font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.white.withAlphaComponent(0.7),
-        ])
-        var pill = Pill(lines: [title, detail], radius: 10)
-        pill.frame.origin = NSPoint(x: (bounds.midX - pill.frame.width / 2).rounded(),
-                                    y: (bounds.midY - pill.frame.height / 2).rounded())
-        return pill
+    private func updateHint() {
+        hintView.isHidden = !(mode == .selecting && showsHint && selection == nil)
+    }
+
+    private func positionHint() {
+        let size = hintView.fittingSize
+        hintView.frame = NSRect(x: (bounds.midX - size.width / 2).rounded(), y: (bounds.midY - size.height / 2).rounded(),
+                                width: ceil(size.width), height: ceil(size.height))
     }
 
     private func sizeLabelLayout() -> Pill? {
@@ -288,12 +321,12 @@ final class SelectionView: NSView {
             areas.append(s.insetBy(dx: -pad, dy: -pad))
         }
         if let label = sizeLabelLayout() { areas.append(label.frame.insetBy(dx: -1, dy: -1)) }
-        if let hint = hintLayout() { areas.append(hint.frame.insetBy(dx: -1, dy: -1)) }
         return areas
     }
 
     /// Redraws only what changed: the old and new selection/label areas.
     private func refresh() {
+        updateHint()
         let areas = decorationAreas()
         for rect in dirtyAreas + areas { setNeedsDisplay(rect) }
         dirtyAreas = areas

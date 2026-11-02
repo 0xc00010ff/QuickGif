@@ -269,6 +269,7 @@ final class SessionController {
 
         let model = RecordingControlsModel(limit: capture.limit)
         model.onTogglePause = { [weak self] in self?.togglePause() }
+        model.onRestart = { [weak self] in self?.restartRecording() }
         model.onStop = { [weak self] in self?.stopRecording() }
         let panel = RecordingControlsPanel(model: model)
         panel.place(near: rect, on: capture.region.screenFrame)
@@ -297,10 +298,54 @@ final class SessionController {
         controlsModel?.elapsed = capture.pipeline.elapsed()
     }
 
+    /// Throws the current take away and records the same region again from 0:00.
+    /// The stream keeps running, so there is no startup gap.
+    func restartRecording() {
+        guard isRecording, let capture else { return }
+        capture.recorder.onFrame = nil
+        capture.pipeline.discard(wait: true)
+
+        let size = capture.region.pixelSize(for: capture.recorder.scale)
+        let pipeline: RecordingPipeline
+        do {
+            pipeline = try RecordingPipeline(url: capture.pipeline.url, width: size.width, height: size.height,
+                                             limit: capture.limit)
+        } catch {
+            // The output folder went away mid-recording; there is nothing left to save.
+            self.capture = nil
+            captureIsRunning = false
+            hideRecordingChrome()
+            Task { await capture.recorder.stop() }
+            guard !becomeIdle() else { return }
+            showToast(.message(title: "Couldn’t restart the recording", detail: error.localizedDescription),
+                      on: capture.region.screen)
+            return
+        }
+
+        self.capture = Capture(region: capture.region, recorder: capture.recorder, pipeline: pipeline,
+                               limit: capture.limit, startTask: capture.startTask)
+        capture.recorder.onFrame = pipeline.append
+        pipeline.begin(at: CACurrentMediaTime())
+        state = .recording(paused: false)
+        borderWindow?.isPaused = false
+        controlsModel?.isPaused = false
+        controlsModel?.elapsed = 0
+    }
+
     func stopRecording() {
         guard isRecording, let capture else { return }
         state = .saving
         let duration = capture.pipeline.stop()
+        hideRecordingChrome()
+
+        Task { @MainActor [weak self] in
+            await capture.recorder.stop()
+            let outcome = await capture.pipeline.finish(at: duration)
+            self?.didFinishSaving(outcome, screen: capture.region.screen)
+        }
+    }
+
+    private func hideRecordingChrome() {
         elapsedTimer?.invalidate()
         elapsedTimer = nil
         borderWindow?.orderOut(nil)
@@ -310,12 +355,6 @@ final class SessionController {
         controlsPanel?.close()
         controlsPanel = nil
         controlsModel = nil
-
-        Task { @MainActor [weak self] in
-            await capture.recorder.stop()
-            let outcome = await capture.pipeline.finish(at: duration)
-            self?.didFinishSaving(outcome, screen: capture.region.screen)
-        }
     }
 
     private func didFinishSaving(_ outcome: RecordingOutcome, screen: NSScreen?) {
@@ -402,6 +441,10 @@ final class SessionController {
             guard let region = overlay.currentRegion else { return false }
             overlay.endEditing()
             start(region, delay: .now)
+            return true
+        case (51, .selecting), (117, .selecting): // Delete, Forward Delete
+            guard !overlay.isEditingText, overlay.currentRegion != nil else { return false }
+            overlay.clearSelection()
             return true
         default:
             return false

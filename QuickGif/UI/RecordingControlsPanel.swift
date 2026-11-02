@@ -8,6 +8,7 @@ final class RecordingControlsModel {
     var isPaused = false
     let limit: TimeInterval?
     @ObservationIgnored var onTogglePause: () -> Void = {}
+    @ObservationIgnored var onRestart: () -> Void = {}
     @ObservationIgnored var onStop: () -> Void = {}
 
     init(limit: TimeInterval?) { self.limit = limit }
@@ -15,6 +16,8 @@ final class RecordingControlsModel {
 
 /// Pause/Stop bar. Non-activating and never key, so clicking it leaves the recorded app focused.
 final class RecordingControlsPanel: NSPanel {
+    private var anchor: (rect: CGRect, screenFrame: CGRect)?
+
     init(model: RecordingControlsModel) {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         configureAsOverlay()
@@ -22,12 +25,21 @@ final class RecordingControlsPanel: NSPanel {
         hidesOnDeactivate = false
         appearance = NSAppearance(named: .darkAqua)
         let hosting = FirstMouseHostingView(rootView: RecordingControlsView(model: model))
+        // The bar gains a Restart button while paused; the window follows the content size
+        // and re-anchors itself to the region.
+        hosting.sizingOptions = .standardBounds
         contentView = hosting
         setContentSize(hosting.fittingSize)
+        NotificationCenter.default.addObserver(self, selector: #selector(didResize), name: NSWindow.didResizeNotification, object: self)
+    }
+
+    @objc private func didResize(_ note: Notification) {
+        if let anchor { place(near: anchor.rect, on: anchor.screenFrame) }
     }
 
     /// Right-aligned 8 pt below the region; above if that leaves the screen; else inside its bottom-right corner.
     func place(near rect: CGRect, on screenFrame: CGRect) {
+        anchor = (rect, screenFrame)
         let size = frame.size
         let gap: CGFloat = 8
         var x = rect.maxX - size.width
@@ -61,17 +73,28 @@ private struct RecordingControlsView: View {
             }
             .frame(minWidth: model.limit == nil ? 44 : 96, alignment: .leading)
 
+            if model.isPaused {
+                Button(action: model.onRestart) {
+                    Image(systemName: "arrow.counterclockwise")
+                }
+                .buttonStyle(CircleButtonStyle(fill: .white.opacity(0.16)))
+                .help("Throw this take away and start again from 0:00")
+                .accessibilityLabel("Restart")
+            }
+
             Button(action: model.onTogglePause) {
                 Image(systemName: model.isPaused ? "play.fill" : "pause.fill")
             }
             .buttonStyle(CircleButtonStyle(fill: .white.opacity(0.16)))
             .help(model.isPaused ? "Resume recording" : "Pause recording")
+            .accessibilityLabel(model.isPaused ? "Resume" : "Pause")
 
             Button(action: model.onStop) {
                 Image(systemName: "stop.fill")
             }
             .buttonStyle(CircleButtonStyle(fill: .red))
             .help("Stop and save")
+            .accessibilityLabel("Stop")
         }
         .padding(.leading, 16)
         .padding(.trailing, 8)

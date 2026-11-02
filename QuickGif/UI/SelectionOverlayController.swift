@@ -19,6 +19,8 @@ final class SelectionOverlayController: SelectionViewDelegate {
             // Let the menu finish tracking before running a modal panel.
             Task { @MainActor in self?.chooseFolder() }
         }
+        model.onSelectEntireScreen = { [weak self] in self?.selectEntireScreen() }
+        model.onClearSelection = { [weak self] in self?.clearSelection() }
     }
 
     var currentRegion: CaptureRegion? {
@@ -59,6 +61,20 @@ final class SelectionOverlayController: SelectionViewDelegate {
     @discardableResult
     func endEditing() -> Bool { panel.endEditing() }
 
+    var isEditingText: Bool { panel.isEditingText }
+
+    /// Selects the whole screen that holds the selection, else the key overlay's screen.
+    func selectEntireScreen() {
+        let view = activeView
+            ?? (NSApp.keyWindow as? SelectionOverlayWindow)?.selectionView
+            ?? windows.first?.selectionView
+        view?.selectEntireScreen()
+    }
+
+    func clearSelection() {
+        activeView?.clearSelection()
+    }
+
     /// Countdown: clear screen, only the selection border remains, clicks pass through.
     func enterCountdown() {
         panel.endEditing()
@@ -82,6 +98,9 @@ final class SelectionOverlayController: SelectionViewDelegate {
     // MARK: SelectionViewDelegate
 
     func selectionViewDidBeginSelection(_ view: SelectionView) {
+        // A freshly dragged rectangle gets the panel placed next to it again, even if the
+        // user had moved the panel; Select Entire Screen leaves a moved panel alone.
+        if view.isDrawingNewSelection { panel.resetPlacement() }
         for window in windows {
             if window.selectionView !== view { window.selectionView.selection = nil }
             window.selectionView.showsHint = false
@@ -93,6 +112,7 @@ final class SelectionOverlayController: SelectionViewDelegate {
     func selectionViewDidChange(_ view: SelectionView) {
         if view === activeView, view.selection == nil {
             activeView = nil
+            panel.resetPlacement()
             windows.forEach { $0.selectionView.showsHint = true }
         }
         updatePanel()
