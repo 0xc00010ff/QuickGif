@@ -118,6 +118,12 @@ struct OptionsView: View {
             .controlSize(.large)
             .help("Start recording now (Return)")
 
+            Toggle("Review before saving", isOn: $prefs.options.reviewBeforeSaving)
+                .toggleStyle(.checkbox)
+                .fixedSize()
+                .padding(.leading, 4)
+                .help("After Stop, trim the GIF before it is saved")
+
             Spacer(minLength: 16)
 
             Text("Delay").foregroundStyle(.secondary)

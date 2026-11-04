@@ -40,7 +40,7 @@ Grant **Screen Recording** when macOS asks, then open QuickGif again. The comman
    - **Timer** stops automatically at 3, 6, 30 or 60 s, or a custom number of seconds.
    - **Save to** and **Name**, **FPS** (5 to 30) and **Size** (1x or Retina).
 5. **While recording** the box is a thin red frame with Pause and Stop at its corner. Pausing adds Restart, which throws the take away and starts over. QuickGif never records its own windows.
-6. **Stop** writes the GIF and shows a toast: click it to open the file, or Show in Finder, or × to dismiss.
+6. **Stop** opens a review window: drag the yellow handles to trim (←/→ nudge a frame), then **Save** (Return; closing the window also saves) or **Trash** (⌘⌫). Untick **Review before saving** to skip it. Saving shows a toast: click it to open the file, or Show in Finder, or × to dismiss.
 
 <p align="center">
   <img src="docs/recording.png" width="600" alt="Recording: a red frame around the video with the pause and stop bar">
@@ -54,11 +54,12 @@ Esc cancels before recording starts. ⌘N starts a new selection, ⌘. stops a r
 
 | Piece | File(s) | Notes |
 |---|---|---|
-| Session flow | `App/SessionController.swift` | `idle → selecting → countdown → recording → saving` |
+| Session flow | `App/SessionController.swift` | `idle → selecting → countdown → recording → saving → reviewing` |
 | Region picker | `UI/SelectionOverlayWindow.swift`, `UI/SelectionView.swift`, `UI/SelectionHintView.swift` | One borderless window per display at screen-saver level; the hint offers Select Entire Screen |
 | Options panel | `UI/OptionsPanel.swift` | SwiftUI, bound to `Preferences.shared` (UserDefaults) |
 | Recording controls | `UI/RecordingControlsPanel.swift`, `UI/RecordingBorderWindow.swift` | Non-activating panel, so Pause/Stop never steal focus |
 | Capture | `Capture/ScreenRecorder.swift` | ScreenCaptureKit, region via `sourceRect`, QuickGif's own app excluded from the filter |
+| Review and trim | `UI/ReviewWindow.swift`, `UI/ReviewFrameSource.swift`, `Encoding/GIFTrimmer.swift` | Records to a temp file; frames decode lazily with ImageIO; Save re-encodes only the kept frames (or just moves the file if untrimmed) |
 | Encoding | `Encoding/GIFEncoder.swift` | Streaming GIF89a writer: frame differencing, transparent unchanged pixels, exact palettes for UI content, median cut otherwise |
 
 Frames stream from ScreenCaptureKit straight into the encoder, so memory stays flat for long recordings. A frame is shown until the next one arrives and identical frames are coalesced, so an idle screen costs almost nothing.

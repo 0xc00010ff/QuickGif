@@ -58,6 +58,12 @@ struct RecordingOptions: Equatable, Codable {
     var saveDirectory: URL = RecordingOptions.defaultDirectory
     /// Base file name without extension. Empty means "auto": `QuickGif 2026-11-01 at 14.22.05`.
     var fileName: String = ""
+    /// Open the trim/review window after Stop instead of saving straight away.
+    var reviewBeforeSaving: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case fps, scale, maxDuration, saveDirectory, fileName, reviewBeforeSaving
+    }
 
     static func autoFileName(for date: Date = Date()) -> String {
         let f = DateFormatter()
@@ -74,14 +80,38 @@ struct RecordingOptions: Equatable, Codable {
         if base.lowercased().hasSuffix(".gif") { base = String(base.dropLast(4)) }
         base = base.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: ".")
 
+        return saveDirectory.appendingPathComponent(base).appendingPathExtension("gif").deduplicated()
+    }
+}
+
+extension RecordingOptions {
+    /// Tolerant decoding: keys missing from older saved preferences keep their defaults.
+    init(from decoder: Decoder) throws {
+        self.init()
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fps = (try? c.decodeIfPresent(Int.self, forKey: .fps)) ?? fps
+        scale = (try? c.decodeIfPresent(CaptureScale.self, forKey: .scale)) ?? scale
+        maxDuration = (try? c.decodeIfPresent(MaxDuration.self, forKey: .maxDuration)) ?? maxDuration
+        saveDirectory = (try? c.decodeIfPresent(URL.self, forKey: .saveDirectory)) ?? saveDirectory
+        fileName = (try? c.decodeIfPresent(String.self, forKey: .fileName)) ?? fileName
+        reviewBeforeSaving = (try? c.decodeIfPresent(Bool.self, forKey: .reviewBeforeSaving)) ?? reviewBeforeSaving
+    }
+}
+
+extension URL {
+    /// This file URL if nothing exists there yet, otherwise the first free "name 2.ext", "name 3.ext", …
+    func deduplicated() -> URL {
         let fm = FileManager.default
-        var candidate = saveDirectory.appendingPathComponent(base).appendingPathExtension("gif")
+        guard fm.fileExists(atPath: path) else { return self }
+        let folder = deletingLastPathComponent()
+        let base = deletingPathExtension().lastPathComponent
+        let ext = pathExtension
         var n = 2
-        while fm.fileExists(atPath: candidate.path) {
-            candidate = saveDirectory.appendingPathComponent("\(base) \(n)").appendingPathExtension("gif")
+        while true {
+            let candidate = folder.appendingPathComponent("\(base) \(n)").appendingPathExtension(ext)
+            if !fm.fileExists(atPath: candidate.path) { return candidate }
             n += 1
         }
-        return candidate
     }
 }
 

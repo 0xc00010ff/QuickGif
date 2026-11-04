@@ -2,7 +2,7 @@ import AppKit
 import QuartzCore
 
 /// Drives one recording at a time:
-/// idle → selecting → countdown(n) → starting → recording(paused:) → saving → idle.
+/// idle → selecting → countdown(n) → starting → recording(paused:) → saving → (reviewing →) idle.
 @MainActor
 final class SessionController {
     enum State: Equatable {
@@ -13,6 +13,8 @@ final class SessionController {
         case starting
         case recording(paused: Bool)
         case saving
+        /// The review window is open on the finished recording.
+        case reviewing
     }
 
     private(set) var state: State = .idle
@@ -36,6 +38,8 @@ final class SessionController {
         let pipeline: RecordingPipeline
         let limit: TimeInterval?
         let startTask: Task<Void, Error>
+        /// Where a reviewed recording goes once saved; nil when it is written there directly.
+        let destination: URL?
     }
     private var capture: Capture?
     private var captureIsRunning = false
@@ -47,6 +51,7 @@ final class SessionController {
     private var permissionWindow: PermissionWindow?
     private var didRequestPermission = false
     private var toast: ToastPanel?
+    private var review: ReviewController?
     private var terminationReply: (() -> Void)?
     private var screenObserver: NSObjectProtocol?
 
@@ -61,6 +66,10 @@ final class SessionController {
     // MARK: Selection
 
     func beginSelection() {
+        if state == .reviewing {
+            review?.bringToFront()
+            return
+        }
         guard state == .idle else { return }
         guard ScreenCapturePermission.isGranted else {
             showPermissionWindow()
@@ -167,7 +176,8 @@ final class SessionController {
     @discardableResult
     private func startCapture(_ region: CaptureRegion) -> Bool {
         let options = Preferences.shared.options
-        let url = options.resolvedOutputURL()
+        let destination = options.resolvedOutputURL()
+        let url = options.reviewBeforeSaving ? Self.reviewFileURL() : destination
         let size = region.pixelSize(for: options.scale)
         let limit = options.maxDuration.seconds.map(TimeInterval.init)
 
@@ -191,7 +201,8 @@ final class SessionController {
         }
 
         let startTask = Task { try await recorder.start() }
-        capture = Capture(region: region, recorder: recorder, pipeline: pipeline, limit: limit, startTask: startTask)
+        capture = Capture(region: region, recorder: recorder, pipeline: pipeline, limit: limit, startTask: startTask,
+                          destination: options.reviewBeforeSaving ? destination : nil)
         captureIsRunning = false
 
         Task { @MainActor [weak self] in
@@ -323,7 +334,7 @@ final class SessionController {
         }
 
         self.capture = Capture(region: capture.region, recorder: capture.recorder, pipeline: pipeline,
-                               limit: capture.limit, startTask: capture.startTask)
+                               limit: capture.limit, startTask: capture.startTask, destination: capture.destination)
         capture.recorder.onFrame = pipeline.append
         pipeline.begin(at: CACurrentMediaTime())
         state = .recording(paused: false)
@@ -341,8 +352,15 @@ final class SessionController {
         Task { @MainActor [weak self] in
             await capture.recorder.stop()
             let outcome = await capture.pipeline.finish(at: duration)
-            self?.didFinishSaving(outcome, screen: capture.region.screen)
+            self?.didFinishSaving(outcome, capture: capture)
         }
+    }
+
+    /// A fresh temporary file for a recording that will be reviewed before saving.
+    private static func reviewFileURL() -> URL {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("QuickGif", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder.appendingPathComponent(UUID().uuidString).appendingPathExtension("gif")
     }
 
     private func hideRecordingChrome() {
@@ -357,9 +375,20 @@ final class SessionController {
         controlsModel = nil
     }
 
-    private func didFinishSaving(_ outcome: RecordingOutcome, screen: NSScreen?) {
-        capture = nil
+    private func didFinishSaving(_ outcome: RecordingOutcome, capture: Capture) {
+        self.capture = nil
         captureIsRunning = false
+        let screen = capture.region.screen
+        if case .saved(let recording) = outcome, let destination = capture.destination {
+            if terminationReply != nil {
+                // Quitting: no time for a review, keep the whole take.
+                _ = try? GIFTrimmer.save(recording.url, to: destination, cut: nil,
+                                         untrimmedDuration: recording.duration)
+            } else {
+                beginReview(recording, destination: destination, region: capture.region)
+                return
+            }
+        }
         guard !becomeIdle() else { return }
         switch outcome {
         case .saved(let recording):
@@ -367,6 +396,31 @@ final class SessionController {
         case .nothingRecorded:
             showToast(.message(title: "Nothing was recorded",
                                detail: "Recording stopped before any frames were captured."), on: screen)
+        case .failed(let error):
+            showToast(.message(title: "Couldn’t save the GIF", detail: error.localizedDescription), on: screen)
+        }
+    }
+
+    // MARK: Review
+
+    private func beginReview(_ recording: SavedRecording, destination: URL, region: CaptureRegion) {
+        let screen = region.screen
+        let controller = ReviewController(recording: recording, destination: destination,
+                                          pointSize: region.rect.size, screen: screen)
+        controller.onFinish = { [weak self] result in self?.didFinishReview(result, screen: screen) }
+        review = controller
+        state = .reviewing
+        controller.show()
+    }
+
+    private func didFinishReview(_ result: ReviewResult, screen: NSScreen?) {
+        review = nil
+        guard !becomeIdle() else { return }
+        switch result {
+        case .saved(let recording):
+            showToast(.saved(recording), on: screen)
+        case .discarded:
+            break
         case .failed(let error):
             showToast(.message(title: "Couldn’t save the GIF", detail: error.localizedDescription), on: screen)
         }
@@ -395,6 +449,10 @@ final class SessionController {
         case .recording:
             terminationReply = reply
             stopRecording()
+            return true
+        case .reviewing:
+            terminationReply = reply
+            review?.saveForTermination()
             return true
         }
     }

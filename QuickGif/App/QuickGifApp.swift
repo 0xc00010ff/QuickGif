@@ -19,7 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if session.state == .idle { session.beginSelection() }
+        if session.state == .idle || session.state == .reviewing { session.beginSelection() }
         return false
     }
 
@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let menu = NSMenu()
         if session.isRecording {
             menu.addItem(withTitle: "Stop Recording", action: #selector(stopRecording(_:)), keyEquivalent: "").target = self
+        } else if session.state == .reviewing {
+            menu.addItem(withTitle: "Show Review", action: #selector(newRecording(_:)), keyEquivalent: "").target = self
         } else {
             menu.addItem(withTitle: "New Recording", action: #selector(newRecording(_:)), keyEquivalent: "").target = self
         }
@@ -44,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     // MARK: Actions
 
+    /// Starts a selection, or brings the review window forward while one is open.
     @objc private func newRecording(_ sender: Any?) {
         session.beginSelection()
     }
@@ -55,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(stopRecording(_:)): return session.isRecording
-        case #selector(newRecording(_:)): return session.state == .idle
+        case #selector(newRecording(_:)): return session.state == .idle || session.state == .reviewing
         default: return true
         }
     }
@@ -74,6 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let file = NSMenu(title: "File")
         file.addItem(withTitle: "New Recording", action: #selector(newRecording(_:)), keyEquivalent: "n").target = self
         file.addItem(withTitle: "Stop Recording", action: #selector(stopRecording(_:)), keyEquivalent: ".").target = self
+        file.addItem(.separator())
+        file.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         main.addItem(submenu: file)
 
         let edit = NSMenu(title: "Edit")
