@@ -1,35 +1,54 @@
-# QuickGif
+<p align="center">
+  <img src="QuickGif/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png" width="112" alt="QuickGif icon">
+</p>
+<h1 align="center">QuickGif</h1>
+<p align="center">Click button, draw area, record GIF.</p>
 
-LICEcap, but modern. A small macOS app that records a region of the screen straight to an animated GIF.
+<p align="center">
+  <img src="docs/hero.png" width="900" alt="QuickGif's selection box around a video player, with the options panel beneath it">
+</p>
 
-Click the dock icon, drag a box, click to record. That is the whole app.
+## About
+
+Sometimes I need to grab a GIF off a YouTube video or something similar. There's a decades-old app called LICEcap that does this, but I was tired of using it. Click button, draw area, record GIF.
+
+## Quickstart for your agent
+
+Paste this into Claude Code, or any agent with a shell:
+
+> Install QuickGif on this Mac: clone https://github.com/0xc00010ff/QuickGif, build it with the xcodebuild command in the README's Manual quickstart, copy QuickGif.app to /Applications, and open it. Tell me when macOS asks for Screen Recording permission so I can grant it.
+
+## Manual quickstart
+
+Needs macOS 14 and Xcode 16 or later. No dependencies.
+
+```bash
+git clone https://github.com/0xc00010ff/QuickGif.git && cd QuickGif
+xcodebuild -project QuickGif.xcodeproj -scheme QuickGif -configuration Release -derivedDataPath build/DerivedData CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= -quiet
+cp -R build/DerivedData/Build/Products/Release/QuickGif.app /Applications/
+open /Applications/QuickGif.app
+```
+
+Grant **Screen Recording** when macOS asks, then open QuickGif again. The command above produces an ad-hoc signed app; to build in Xcode instead, pick your own team under Signing & Capabilities.
 
 ## Using it
 
-1. **Click the QuickGif dock icon.** The screen goes white-translucent, like ⌘⇧4.
-2. **Drag a box** around what you want to record, or click **Select Entire Screen** (⌘A). Resize with the handles or drag it to move. **Reset Selection** (or Delete) clears it so you can start over.
-3. **Start**: click anywhere (or press Return, or the **Record** button) to start now, or pick a **1s / 3s / 5s / 10s** delay. During the countdown the screen is yours: arrange windows, position the cursor. Esc during a countdown goes back to the selection.
-4. **Options** in the panel under the box (drag the panel if it is in the way):
-   - **Timer** (auto-stop): Off, 3s, 6s, 30s, 60s, or Custom seconds.
-   - **Save to**: Desktop, Downloads, Pictures, Movies, or Choose…
-   - **Name**: defaults to `QuickGif 2026-11-01 at 14.22.05.gif`.
-   - **FPS** (5–30, default 10) and **Size** (1x or Retina).
-5. **While recording** the box is transparent with a thin red frame. Big **Pause** and **Stop** buttons sit at the bottom right. While paused, **Restart** throws the take away and starts again from 0:00. QuickGif's own windows are never captured.
-6. **Stop** writes the GIF and shows a toast with a *Show in Finder* button. The toast goes away on its own, or click its ×.
+1. **Click the dock icon.** The screen dims, ⌘⇧4 style.
+2. **Draw a box**, or click **Select Entire Screen** (⌘A). Handles resize it, dragging moves it, Delete clears it.
+3. **Record**: click anywhere, press Return, or hit the Record button. Or pick a **1 / 3 / 5 / 10 s** delay and set the scene; Esc during the countdown goes back.
+4. **Options** live in the panel under the box. Drag it aside if it's in the way.
+   - **Timer** stops automatically at 3, 6, 30 or 60 s, or a custom number of seconds.
+   - **Save to** and **Name**, **FPS** (5 to 30) and **Size** (1x or Retina).
+5. **While recording** the box is a thin red frame with Pause and Stop at its corner. Pausing adds Restart, which throws the take away and starts over. QuickGif never records its own windows.
+6. **Stop** writes the GIF and shows a toast: click it to open the file, or Show in Finder, or × to dismiss.
 
-Esc cancels at any point before recording. ⌘N starts a new selection, ⌘. stops a recording, and the dock menu has both. Quitting mid-recording saves first.
+<p align="center">
+  <img src="docs/recording.png" width="600" alt="Recording: a red frame around the video with the pause and stop bar">
+  &nbsp;&nbsp;
+  <img src="docs/toast.png" width="290" alt="Saved toast with Show in Finder and a close button">
+</p>
 
-The first launch asks for **Screen Recording** permission (System Settings → Privacy & Security). macOS requires a relaunch after granting it.
-
-## Building
-
-Open `QuickGif.xcodeproj` in Xcode 16 or later and run, or:
-
-```bash
-xcodebuild -project QuickGif.xcodeproj -scheme QuickGif -configuration Debug -derivedDataPath build/DerivedData build
-```
-
-The app lands in `build/DerivedData/Build/Products/Debug/QuickGif.app`. Requires macOS 14 Sonoma or later. No dependencies.
+Esc cancels before recording starts. ⌘N starts a new selection, ⌘. stops a recording, and the dock menu has both. Quitting mid-recording saves first.
 
 ## How it works
 
@@ -42,8 +61,12 @@ The app lands in `build/DerivedData/Build/Products/Debug/QuickGif.app`. Requires
 | Capture | `Capture/ScreenRecorder.swift` | ScreenCaptureKit, region via `sourceRect`, QuickGif's own app excluded from the filter |
 | Encoding | `Encoding/GIFEncoder.swift` | Streaming GIF89a writer: frame differencing, transparent unchanged pixels, exact palettes for UI content, median cut otherwise |
 
-Frames stream from ScreenCaptureKit straight into the encoder, so memory stays flat for long recordings. A frame is shown until the next frame arrives, and identical frames are coalesced, so an idle screen costs almost nothing.
+Frames stream from ScreenCaptureKit straight into the encoder, so memory stays flat for long recordings. A frame is shown until the next one arrives and identical frames are coalesced, so an idle screen costs almost nothing.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+---
+
+<p align="center"><i>Clarity in brevity is the ultimate sophistication</i></p>
