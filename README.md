@@ -5,7 +5,7 @@
 <p align="center">Click button, draw area, record GIF.</p>
 
 <p align="center">
-  <img src="docs/hero.png" width="900" alt="QuickGif's selection box around a video player, with the options panel beneath it">
+  <img src="docs/demo.gif" width="900" alt="Animated demo: clicking QuickGif in the Dock, dragging a box around a video player, recording it, trimming the clip in the review window, and saving the GIF">
 </p>
 
 ## About
