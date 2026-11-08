@@ -52,6 +52,9 @@ final class SessionController {
     private var didRequestPermission = false
     private var toast: ToastPanel?
     private var review: ReviewController?
+    private var palette: StartPalette?
+    /// Esc during a selection started from the palette goes back to the palette.
+    private var returnToPalette = false
     private var terminationReply: (() -> Void)?
     private var screenObserver: NSObjectProtocol?
 
@@ -63,9 +66,49 @@ final class SessionController {
         }
     }
 
+    // MARK: Palette
+
+    /// The Dock icon's action: a small floating toolbar to start from, so the screen
+    /// can be arranged before the selection overlay covers it.
+    func showPalette() {
+        if state == .reviewing {
+            review?.bringToFront()
+            return
+        }
+        guard state == .idle else { return }
+        guard ScreenCapturePermission.isGranted else {
+            showPermissionWindow()
+            return
+        }
+        toast?.dismiss(animated: false)
+        if palette == nil {
+            let palette = StartPalette()
+            palette.onSelectArea = { [weak self] in self?.startFromPalette(entireScreen: false) }
+            palette.onEntireScreen = { [weak self] in self?.startFromPalette(entireScreen: true) }
+            palette.onClose = { [weak self] in self?.closePalette() }
+            self.palette = palette
+        }
+        palette?.present()
+    }
+
+    private func startFromPalette(entireScreen: Bool) {
+        palette?.orderOut(nil)
+        returnToPalette = true
+        beginSelection(entireScreen: entireScreen)
+        if state != .selecting { closePalette() }
+    }
+
+    private func closePalette() {
+        palette?.orderOut(nil)
+        palette?.close()
+        palette = nil
+        returnToPalette = false
+    }
+
     // MARK: Selection
 
-    func beginSelection() {
+    /// Opens the selection overlay; `entireScreen` preselects the screen under the pointer.
+    func beginSelection(entireScreen: Bool = false) {
         if state == .reviewing {
             review?.bringToFront()
             return
@@ -89,11 +132,13 @@ final class SessionController {
         state = .selecting
         installKeyMonitor()
         overlay.show()
+        if entireScreen { overlay.selectEntireScreen() }
     }
 
     private func cancelSelection() {
         tearDownSelection()
-        becomeIdle()
+        guard !becomeIdle() else { return }
+        if returnToPalette, let palette { palette.present() }
     }
 
     private func tearDownSelection() {
@@ -109,6 +154,7 @@ final class SessionController {
 
     private func start(_ region: CaptureRegion, delay: StartDelay) {
         guard state == .selecting else { return }
+        closePalette()
         if delay == .now {
             tearDownSelection()
             state = .starting

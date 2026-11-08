@@ -21,9 +21,25 @@ extension NSWindow {
 }
 
 /// Hosting view that takes the first click even when its window is not key,
-/// so buttons in non-activating panels respond immediately.
+/// so buttons in non-activating panels respond immediately. It also shows the normal
+/// arrow over itself: the selection crosshair belongs to the overlay alone.
 final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    private var arrowArea: NSTrackingArea?
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let arrowArea { removeTrackingArea(arrowArea) }
+        // `.activeAlways`: these panels are usually not key, where cursor rects don't apply.
+        let area = NSTrackingArea(rect: .zero, options: [.cursorUpdate, .activeAlways, .inVisibleRect], owner: self)
+        addTrackingArea(area)
+        arrowArea = area
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.arrow.set()
+    }
 }
 
 /// Behind-window blur with rounded corners. A mask image (rather than a layer

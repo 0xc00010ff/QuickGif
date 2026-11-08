@@ -37,8 +37,16 @@ final class ReviewController: NSObject, NSWindowDelegate {
         model = ReviewModel(previewSize: preview, recordedBytes: recording.byteCount,
                             recordedDuration: recording.duration)
 
-        window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable],
-                          backing: .buffered, defer: false)
+        // A floating, non-activating panel: Stop is clicked on a panel that leaves the
+        // browser active, so a normal window would open behind it. This one comes up on top,
+        // takes the keyboard without needing the app to activate, and follows into full screen.
+        let panel = NSPanel(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .nonactivatingPanel],
+                            backing: .buffered, defer: false)
+        panel.level = .floating
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = false
+        panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window = panel
         super.init()
         window.title = destination.lastPathComponent
         window.isReleasedWhenClosed = false
@@ -62,9 +70,9 @@ final class ReviewController: NSObject, NSWindowDelegate {
     }
 
     func bringToFront() {
-        NSApp.activate()
         if window.isMiniaturized { window.deminiaturize(nil) }
-        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        window.makeKey()
     }
 
     /// The app is quitting: save with the current trim, without asking anything.

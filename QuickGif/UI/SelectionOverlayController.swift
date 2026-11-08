@@ -40,10 +40,11 @@ final class SelectionOverlayController: SelectionViewDelegate {
         let mouse = NSEvent.mouseLocation
         let keyWindow = windows.first { NSMouseInRect(mouse, $0.screenFrame, false) } ?? windows.first
         keyWindow?.makeKeyAndOrderFront(nil)
-        NSCursor.crosshair.set()
+        keyWindow?.selectionView.refreshCursor()
     }
 
     func close() {
+        NSCursor.arrow.set()
         panel.orderOut(nil)
         panel.close()
         for window in windows {
@@ -79,6 +80,7 @@ final class SelectionOverlayController: SelectionViewDelegate {
     func enterCountdown() {
         panel.endEditing()
         panel.orderOut(nil)
+        NSCursor.arrow.set()
         for window in windows {
             window.ignoresMouseEvents = true
             window.selectionView.mode = .countdown
@@ -92,6 +94,7 @@ final class SelectionOverlayController: SelectionViewDelegate {
         }
         NSApp.activate()
         (activeView?.window ?? windows.first)?.makeKeyAndOrderFront(nil)
+        windows.forEach { $0.selectionView.refreshCursor() }
         updatePanel()
     }
 

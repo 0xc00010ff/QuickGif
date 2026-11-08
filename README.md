@@ -33,14 +33,14 @@ Grant **Screen Recording** when macOS asks, then open QuickGif again. The comman
 
 ## Using it
 
-1. **Click the dock icon.** The screen dims, ⌘⇧4 style.
-2. **Draw a box**, or click **Select Entire Screen** (⌘A). Handles resize it, dragging moves it, Delete clears it.
+1. **Click the dock icon.** A small floating palette appears, ⌘⇧5 style. Get the page ready first: it stays on top while you scroll, cue the video, or resize windows.
+2. **Select Area** dims the screen so you can draw a box; **Entire Screen** selects the whole display. Handles resize the box, dragging moves it, Delete clears it, Esc goes back to the palette.
 3. **Record**: click anywhere, press Return, or hit the Record button. Or pick a **1 / 3 / 5 / 10 s** delay and set the scene; Esc during the countdown goes back.
 4. **Options** live in the panel under the box. Drag it aside if it's in the way.
    - **Timer** stops automatically at 3, 6, 30 or 60 s, or a custom number of seconds.
    - **Save to** and **Name**, **FPS** (5 to 30) and **Size** (1x or Retina).
 5. **While recording** the box is a thin red frame with Pause and Stop at its corner. Pausing adds Restart, which throws the take away and starts over. QuickGif never records its own windows.
-6. **Stop** opens a review window: drag the yellow handles to trim (←/→ nudge a frame), then **Save** (Return; closing the window also saves) or **Trash** (⌘⌫). Untick **Review before saving** to skip it. Saving shows a toast: click it to open the file, or Show in Finder, or × to dismiss.
+6. **Stop** opens a review window, floating on top: drag the yellow handles to trim (←/→ nudge a frame), then **Save** (Return; closing the window also saves) or **Trash** (⌘⌫). Untick **Review before saving** to skip it. Saving shows a toast: click it to open the file, or Show in Finder, or × to dismiss.
 
 <p align="center">
   <img src="docs/recording.png" width="600" alt="Recording: a red frame around the video with the pause and stop bar">

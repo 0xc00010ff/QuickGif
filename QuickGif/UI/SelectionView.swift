@@ -182,8 +182,13 @@ final class SelectionView: NSView {
 
     // MARK: Cursor
 
-    override func resetCursorRects() {
-        if mode == .selecting { addCursorRect(bounds, cursor: .crosshair) }
+    // The cursor follows the pointer through the tracking area (it works when the overlay
+    // is not key, unlike cursor rects): crosshair only where a drag draws a new box.
+
+    /// Sets the cursor for wherever the pointer is now.
+    func refreshCursor() {
+        guard let window else { return }
+        updateCursor(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
     }
 
     override func cursorUpdate(with event: NSEvent) {

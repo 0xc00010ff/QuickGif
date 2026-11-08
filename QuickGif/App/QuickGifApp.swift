@@ -15,11 +15,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.mainMenu = makeMainMenu()
-        session.beginSelection()
+        session.showPalette()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if session.state == .idle || session.state == .reviewing { session.beginSelection() }
+        if session.state == .idle || session.state == .reviewing { session.showPalette() }
         return false
     }
 
@@ -39,16 +39,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         } else if session.state == .reviewing {
             menu.addItem(withTitle: "Show Review", action: #selector(newRecording(_:)), keyEquivalent: "").target = self
         } else {
-            menu.addItem(withTitle: "New Recording", action: #selector(newRecording(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Select Area", action: #selector(selectArea(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: "Entire Screen", action: #selector(entireScreen(_:)), keyEquivalent: "").target = self
         }
         return menu
     }
 
     // MARK: Actions
 
-    /// Starts a selection, or brings the review window forward while one is open.
+    /// Shows the start palette, or brings the review window forward while one is open.
     @objc private func newRecording(_ sender: Any?) {
+        session.showPalette()
+    }
+
+    @objc private func selectArea(_ sender: Any?) {
         session.beginSelection()
+    }
+
+    @objc private func entireScreen(_ sender: Any?) {
+        session.beginSelection(entireScreen: true)
     }
 
     @objc private func stopRecording(_ sender: Any?) {
@@ -59,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         switch menuItem.action {
         case #selector(stopRecording(_:)): return session.isRecording
         case #selector(newRecording(_:)): return session.state == .idle || session.state == .reviewing
+        case #selector(selectArea(_:)), #selector(entireScreen(_:)): return session.state == .idle
         default: return true
         }
     }
